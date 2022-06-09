@@ -1,0 +1,50 @@
+###
+GET http://localhost:9999/getCards HTTP/1.1
+
+###
+POST http://localhost:9999/getCards HTTP/1.1
+
+###
+POST http://localhost:9999/request?key=queryValue1&key=queryValue2 HTTP/1.1
+Accept: text/plain
+Content-Type: application/x-www-form-urlencoded
+
+key=postFormValue1&key=postFormValue2
+
+###
+POST localhost:9999/addCard
+Content-Type: application/json
+
+{
+  "type": "virtual",
+  "issuer": "VISA",
+  "id": 2
+}
+
+###
+POST localhost:9999/addUser
+Content-Type: application/json
+
+{
+  "id": 2
+}
+
+
+###
+POST localhost:9999/addCard?id=2
+Content-Type: application/json
+
+{
+  "id": 1,
+  "type": "additional",
+  "issuer": "VISA"
+}
+
+###
+GET localhost:9999/getUserCards?id=3
+
+###
+GET localhost:9999/getCardTransactions?cardID=1
+
+###
+GET localhost:9999/returnPanic
