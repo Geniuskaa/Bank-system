@@ -37,4 +37,19 @@ CREATE  TABLE transactions
     date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE users
+(
+    id BIGSERIAL PRIMARY KEY,
+    login TEXT UNIQUE NOT NULL,
+    password TEXT UNIQUE NOT NULL,
+    role TEXT NOT NULL CHECK ( role IN ('CLIENT', 'ADMIN', 'VIPCLIENT', 'OPERATOR')),
+    client_id BIGINT references clients(id) DEFAULT Null
+);
+
+CREATE TABLE user_to_token
+(
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT references users(id) NOT NULL,
+    token TEXT NOT NULL UNIQUE
+);
 

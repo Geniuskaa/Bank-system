@@ -5,6 +5,15 @@ type UserDTO struct {
 	Cards []*CardDTO `json:"cards"`
 }
 
-type NewUserDTO struct {
+type UserRegAndLognDTO struct {
+	Login    string `json:"login"`
+	Password string `json:"password"`
+}
+
+type UserRegistrationSuccessDTO struct {
 	Id int64 `json:"id"`
+}
+
+type UserLoginDTO struct {
+	Login string `json:"login"`
 }

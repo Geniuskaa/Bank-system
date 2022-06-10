@@ -48,3 +48,32 @@ GET localhost:9999/getCardTransactions?cardID=1
 
 ###
 GET localhost:9999/returnPanic
+
+
+
+###
+POST localhost:9999/api/users
+Content-Type: application/json
+
+{
+  "login": "lokotok",
+  "password": "qwerty003"
+}
+
+###
+POST localhost:9999/token
+Content-Type: application/json
+
+{
+  "login": "lokotok",
+  "password": "qwerty003"
+}
+
+###
+POST localhost:9999/cards
+Authorization: e7bb9c47-e8ff-11ec-a876-00ffd1b06a71
+Content-Type: application/json
+
+{
+  "login": "lokotok"
+}
