@@ -10,4 +10,12 @@ services:
       - POSTGRES_DB=emilDB
     volumes:
       - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
+  nosqlbankdb:
+    image: mongo:4.4
+    ports:
+      - 27017:27017
+    environment:
+        - MONGO_INITDB_DATABASE=emil
+    volumes:
+      - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
 

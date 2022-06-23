@@ -2,11 +2,11 @@ package main
 
 import (
 	"Bank-system/cmd/bank/app"
-	"Bank-system/pkg/card"
-	"Bank-system/pkg/user"
 	"context"
 	"github.com/go-chi/chi"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"net"
 	"net/http"
@@ -14,9 +14,11 @@ import (
 )
 
 const (
-	defaultPort = "9999"
-	defaultHost = "0.0.0.0"
-	defaultDSN  = "postgres://app:pass@localhost:5200/emilDB"
+	defaultPort        = "9999"
+	defaultHost        = "0.0.0.0"
+	defaultPostgresDSN = "postgres://app:pass@localhost:5200/emilDB"
+	defaultMongoDSN    = "mongodb://app:pass@localhost:27017/" + defaultMongoDB
+	defaultMongoDB     = "emil"
 )
 
 func main() {
@@ -30,29 +32,51 @@ func main() {
 		host = defaultHost
 	}
 
-	dsn, ok := os.LookupEnv("APP_DSN")
+	postgresDsn, ok := os.LookupEnv("APP_POSTGRES_DSN")
 	if !ok {
-		dsn = defaultDSN
+		postgresDsn = defaultPostgresDSN
 	}
 
-	if err := execute(net.JoinHostPort(host, port), dsn); err != nil {
+	mongoDsn, ok := os.LookupEnv("APP_MONGO_DSN")
+	if !ok {
+		mongoDsn = defaultMongoDSN
+	}
+
+	mongoDB, ok := os.LookupEnv("APP_MONGO_DB")
+	if !ok {
+		mongoDB = defaultMongoDB
+	}
+
+	if err := execute(net.JoinHostPort(host, port), postgresDsn, mongoDsn, mongoDB); err != nil {
 		os.Exit(1)
 	}
 }
 
-func execute(addr string, dsn string) (err error) {
+func execute(addr string, dsn string, mongoDsn string, mongoDBname string) (err error) {
 	ctx := context.Background()
-	pool, err := pgxpool.Connect(ctx, dsn)
+	pstgrCtx, cancelPstgr := context.WithCancel(ctx)
+	mongoCtx, cancelMongo := context.WithCancel(ctx)
+
+	pool, err := pgxpool.Connect(pstgrCtx, dsn)
 	if err != nil {
 		log.Print(err)
+		cancelPstgr()
 		return err
 	}
 
-	userSvc := user.NewService(pool)
-	cardSvc := card.NewService(pool)
+	client, err := mongo.Connect(mongoCtx, options.Client().ApplyURI(mongoDsn))
+	if err != nil {
+		log.Print(err)
+		cancelMongo()
+		return err
+	}
+
+	mongoDatabase := client.Database(mongoDBname)
+
+	handlerStorage := app.NewHandler(pool, mongoDatabase)
 
 	mux := chi.NewRouter()
-	application := app.NewServer(cardSvc, mux, pool, userSvc)
+	application := app.NewServer(mux, handlerStorage)
 	application.Init()
 
 	server := &http.Server{
