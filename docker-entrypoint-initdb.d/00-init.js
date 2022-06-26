@@ -11,6 +11,8 @@ db.createUser({
 
 db.createCollection('orders');
 
+db.createCollection('films');
+
 // Example of collection creation
 db.createCollection('user_payments', {
     validator: {

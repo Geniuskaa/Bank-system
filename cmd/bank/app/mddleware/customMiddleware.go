@@ -1,11 +1,12 @@
-package app
+package mddleware
 
 import (
 	"log"
 	"net/http"
 )
 
-func (s *Server) Recoverer(handler http.Handler) http.Handler {
+//Кастомный middleware для ловли паники. Сделан исключительно в целях практики. В проде используй провереренные решения!
+func Recoverer(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		log.Printf("new request: %s %s", request.Method, request.URL.Path)
 		defer func() {

@@ -18,4 +18,11 @@ services:
         - MONGO_INITDB_DATABASE=emil
     volumes:
       - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
+  bankcache:
+    image: redis:6.0-alpine
+    ports:
+      - 6379:6379
+    volumes:
+      - ./conf/redis.conf:/usr/local/etc/redis/redis.conf
+    command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
 

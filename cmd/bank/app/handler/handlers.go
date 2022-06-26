@@ -1,13 +1,19 @@
-package app
+package handler
 
 import (
 	"Bank-system/cmd/bank/app/dto"
+	"Bank-system/cmd/bank/app/mddleware/cache"
+	//"Bank-system/cmd/bank/app/server"
 	"Bank-system/pkg/additionalservice/cinema"
+	"Bank-system/pkg/additionalservice/cinema/model"
 	"Bank-system/pkg/card"
 	"Bank-system/pkg/user"
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/go-chi/chi"
+	"github.com/gomodule/redigo/redis"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -21,13 +27,15 @@ type Handler struct {
 	cardSvc   *card.Service
 	userSvc   *user.Service
 	cinemaSvc *cinema.Service
+	CacheSvc  *cache.Service
 }
 
-func NewHandler(pool *pgxpool.Pool, mongoDB *mongo.Database) *Handler {
+func NewHandler(pool *pgxpool.Pool, mongoDB *mongo.Database, cachePool *redis.Pool) *Handler {
 	return &Handler{
 		cardSvc:   card.NewService(pool),
 		userSvc:   user.NewService(pool),
 		cinemaSvc: cinema.NewService(mongoDB),
+		CacheSvc:  cache.NewService(cachePool),
 	}
 }
 
@@ -76,11 +84,11 @@ func userAlreadyUsedErrorJson(writer http.ResponseWriter) (w http.ResponseWriter
 	return
 }
 
-func (h *Handler) returnPanic(w http.ResponseWriter, r *http.Request) {
-	panic("I will be caught by middleware!")
+func (h *Handler) ReturnPanic(w http.ResponseWriter, r *http.Request) {
+	panic("I will be caught by mddleware!")
 }
 
-func (h *Handler) getUserCards(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetUserCards(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.URL.Query().Get("id"))
 	log.Println(id)
 	if err != nil {
@@ -126,7 +134,7 @@ func (h *Handler) getUserCards(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) getCardTransactions(writer http.ResponseWriter, request *http.Request) {
+func (h *Handler) GetCardTransactions(writer http.ResponseWriter, request *http.Request) {
 	cardID, err := strconv.Atoi(request.URL.Query().Get("cardID"))
 	if err != nil {
 		log.Println(err)
@@ -154,7 +162,7 @@ func (h *Handler) getCardTransactions(writer http.ResponseWriter, request *http.
 	}
 }
 
-func (h *Handler) registerUser(writer http.ResponseWriter, request *http.Request) {
+func (h *Handler) RegisterUser(writer http.ResponseWriter, request *http.Request) {
 	body, err := ioutil.ReadAll(request.Body)
 	if err != nil {
 		writer = internalServerErrorJson(writer)
@@ -194,7 +202,7 @@ func (h *Handler) registerUser(writer http.ResponseWriter, request *http.Request
 
 }
 
-func (h *Handler) tokenGenerator(writer http.ResponseWriter, request *http.Request) {
+func (h *Handler) TokenGenerator(writer http.ResponseWriter, request *http.Request) {
 	body, err := ioutil.ReadAll(request.Body)
 	if err != nil {
 		writer = internalServerErrorJson(writer)
@@ -238,38 +246,39 @@ func (h *Handler) tokenGenerator(writer http.ResponseWriter, request *http.Reque
 
 }
 
-func (h *Handler) getAllCards(writer http.ResponseWriter, request *http.Request) {
-	body, err := ioutil.ReadAll(request.Body)
-	if err != nil {
-		log.Println(err)
-		writer = internalServerErrorJson(writer)
-		return
-	}
-
-	login := &dto.UserLoginDTO{}
-	err = json.Unmarshal(body, login)
-	if err != nil {
-		writer = internalServerErrorJson(writer)
-		return
-	}
-
-	role := request.Context().Value(authenticationContextKey).(user.Role)
-
-	cards, err := h.cardSvc.All(request.Context(), login, string(role))
-	if err != nil {
-		return
-	}
-
-	responseBody, err := marshalDtos(cards)
-	if err != nil {
-		log.Println(err)
-		writer = internalServerErrorJson(writer)
-		return
-	}
-
-	writer.Header().Add("Content-Type", "application/json")
-	writer.Write(responseBody)
-}
+//Ошибка в закольцовке import`ов. Необходимо передавать authenticationContextKey из server сюда
+//func (h *Handler) GetAllCards(writer http.ResponseWriter, request *http.Request) {
+//	body, err := ioutil.ReadAll(request.Body)
+//	if err != nil {
+//		log.Println(err)
+//		writer = internalServerErrorJson(writer)
+//		return
+//	}
+//
+//	login := &dto.UserLoginDTO{}
+//	err = json.Unmarshal(body, login)
+//	if err != nil {
+//		writer = internalServerErrorJson(writer)
+//		return
+//	}
+//
+//	role := request.Context().Value(server.AuthenticationContextKey).(user.Role)
+//
+//	cards, err := h.cardSvc.All(request.Context(), login, string(role))
+//	if err != nil {
+//		return
+//	}
+//
+//	responseBody, err := marshalDtos(cards)
+//	if err != nil {
+//		log.Println(err)
+//		writer = internalServerErrorJson(writer)
+//		return
+//	}
+//
+//	writer.Header().Add("Content-Type", "application/json")
+//	writer.Write(responseBody)
+//}
 
 func (h *Handler) FindAll(writer http.ResponseWriter, request *http.Request) {
 	body, err := h.cinemaSvc.GetAllOrders(request.Context())
@@ -330,7 +339,7 @@ func (h *Handler) Search(writer http.ResponseWriter, request *http.Request) {
 }
 
 func (h *Handler) Save(writer http.ResponseWriter, request *http.Request) {
-	var order cinema.Order
+	var order model.Order
 	err := json.NewDecoder(request.Body).Decode(&order)
 	if err != nil {
 		log.Print(err)
@@ -367,4 +376,105 @@ func (h *Handler) Save(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+}
+
+func (h *Handler) All(writer http.ResponseWriter, request *http.Request) {
+	if cached, err := h.CacheSvc.FromCache(request.Context(), "films:all"); err == nil {
+		log.Printf("Got from cache: %s", cached)
+		writer.Header().Set("Content-Type", "application/json")
+		_, err = writer.Write(cached)
+		if err != nil {
+			log.Print(err)
+		}
+		return
+	}
+
+	body, err := h.cinemaSvc.GetAllFilmsInfo(request.Context())
+	if err != nil {
+		log.Print(err)
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// После получения данных из основной БД и отправки клиенту, можем сохранить в кэш
+	go func() {
+		_ = h.CacheSvc.ToCache(context.Background(), "films:all", body)
+	}()
+
+	writer.Header().Set("Content-Type", "application/json")
+	_, err = writer.Write(body)
+	if err != nil {
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *Handler) ByID(writer http.ResponseWriter, request *http.Request) {
+	idParam := chi.URLParam(request, "id")
+	if idParam == "" {
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if cached, err := h.CacheSvc.FromCache(request.Context(), fmt.Sprintf("films:%s", idParam)); err == nil {
+		log.Printf("Got from cache: %s", cached)
+		writer.Header().Set("Content-Type", "application/json")
+		_, err = writer.Write(cached)
+		if err != nil {
+			log.Print(err)
+		}
+		return
+	}
+
+	body, err := h.cinemaSvc.GetFilmInfoById(request.Context(), idParam)
+	if err != nil {
+		log.Print(err)
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	_, err = writer.Write(body)
+	if err != nil {
+		writer.WriteHeader(http.StatusInternalServerError)
+	}
+
+	// После получения данных из основной БД и отправки клиенту, можем сохранить в кэш
+	go func() {
+		_ = h.CacheSvc.ToCache(context.Background(), fmt.Sprintf("films:%s", idParam), body)
+	}()
+
+}
+
+func (h *Handler) Upload(writer http.ResponseWriter, request *http.Request) {
+	var film model.FilmInfo
+
+	err := json.NewDecoder(request.Body).Decode(&film)
+	if err != nil {
+		log.Print(err)
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	filmId, err := h.cinemaSvc.UploadFilm(request.Context(), film)
+	if err != nil {
+		log.Print(err)
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	body, err := json.Marshal(filmId)
+	if err != nil {
+		log.Print(err)
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	_, err = writer.Write(body)
+	if err != nil {
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 }

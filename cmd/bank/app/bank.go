@@ -1,9 +1,11 @@
 package main
 
 import (
-	"Bank-system/cmd/bank/app"
+	"Bank-system/cmd/bank/app/handler"
+	"Bank-system/cmd/bank/app/server"
 	"context"
 	"github.com/go-chi/chi"
+	"github.com/gomodule/redigo/redis"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -19,6 +21,7 @@ const (
 	defaultPostgresDSN = "postgres://app:pass@localhost:5200/emilDB"
 	defaultMongoDSN    = "mongodb://app:pass@localhost:27017/" + defaultMongoDB
 	defaultMongoDB     = "emil"
+	defaultCacheDSN    = "redis://localhost:6379/0"
 )
 
 func main() {
@@ -47,16 +50,22 @@ func main() {
 		mongoDB = defaultMongoDB
 	}
 
-	if err := execute(net.JoinHostPort(host, port), postgresDsn, mongoDsn, mongoDB); err != nil {
+	cacheDSN, ok := os.LookupEnv("APP_CACHE_DSN")
+	if !ok {
+		cacheDSN = defaultCacheDSN
+	}
+
+	if err := execute(net.JoinHostPort(host, port), postgresDsn, mongoDsn, mongoDB, cacheDSN); err != nil {
 		os.Exit(1)
 	}
 }
 
-func execute(addr string, dsn string, mongoDsn string, mongoDBname string) (err error) {
+func execute(addr string, dsn string, mongoDsn string, mongoDBname string, cacheDSN string) (err error) {
 	ctx := context.Background()
 	pstgrCtx, cancelPstgr := context.WithCancel(ctx)
 	mongoCtx, cancelMongo := context.WithCancel(ctx)
 
+	//Создание пула подключений к PostgreSQL
 	pool, err := pgxpool.Connect(pstgrCtx, dsn)
 	if err != nil {
 		log.Print(err)
@@ -64,6 +73,7 @@ func execute(addr string, dsn string, mongoDsn string, mongoDBname string) (err 
 		return err
 	}
 
+	//Создание подключения к MongoDB
 	client, err := mongo.Connect(mongoCtx, options.Client().ApplyURI(mongoDsn))
 	if err != nil {
 		log.Print(err)
@@ -73,10 +83,17 @@ func execute(addr string, dsn string, mongoDsn string, mongoDBname string) (err 
 
 	mongoDatabase := client.Database(mongoDBname)
 
-	handlerStorage := app.NewHandler(pool, mongoDatabase)
+	//Создание пула подключений к Redis
+	cache := &redis.Pool{
+		DialContext: func(ctx context.Context) (redis.Conn, error) {
+			return redis.DialURL(cacheDSN)
+		},
+	}
+
+	handlerStorage := handler.NewHandler(pool, mongoDatabase, cache)
 
 	mux := chi.NewRouter()
-	application := app.NewServer(mux, handlerStorage)
+	application := server.NewServer(mux, handlerStorage)
 	application.Init()
 
 	server := &http.Server{
