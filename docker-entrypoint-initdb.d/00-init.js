@@ -13,6 +13,8 @@ db.createCollection('orders');
 
 db.createCollection('films');
 
+db.createCollection('suggestions');
+
 // Example of collection creation
 db.createCollection('user_payments', {
     validator: {

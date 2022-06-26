@@ -1,7 +1,7 @@
 package main
 
 import (
-	"Bank-system/cmd/bank/app/handler"
+	"Bank-system/cmd/bank/app/handlr"
 	"Bank-system/cmd/bank/app/server"
 	"context"
 	"github.com/go-chi/chi"
@@ -90,7 +90,7 @@ func execute(addr string, dsn string, mongoDsn string, mongoDBname string, cache
 		},
 	}
 
-	handlerStorage := handler.NewHandler(pool, mongoDatabase, cache)
+	handlerStorage := handlr.NewHandler(pool, mongoDatabase, cache)
 
 	mux := chi.NewRouter()
 	application := server.NewServer(mux, handlerStorage)

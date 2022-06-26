@@ -1,8 +1,11 @@
-package handler
+package handlr
 
 import (
+	"Bank-system/cmd/bank/app/contextKey"
 	"Bank-system/cmd/bank/app/dto"
-	"Bank-system/cmd/bank/app/mddleware/cache"
+	"Bank-system/cmd/bank/app/serviceMiddleware/cache"
+	"time"
+
 	//"Bank-system/cmd/bank/app/server"
 	"Bank-system/pkg/additionalservice/cinema"
 	"Bank-system/pkg/additionalservice/cinema/model"
@@ -25,7 +28,7 @@ import (
 
 type Handler struct {
 	cardSvc   *card.Service
-	userSvc   *user.Service
+	UserSvc   *user.Service
 	cinemaSvc *cinema.Service
 	CacheSvc  *cache.Service
 }
@@ -33,7 +36,7 @@ type Handler struct {
 func NewHandler(pool *pgxpool.Pool, mongoDB *mongo.Database, cachePool *redis.Pool) *Handler {
 	return &Handler{
 		cardSvc:   card.NewService(pool),
-		userSvc:   user.NewService(pool),
+		UserSvc:   user.NewService(pool),
 		cinemaSvc: cinema.NewService(mongoDB),
 		CacheSvc:  cache.NewService(cachePool),
 	}
@@ -85,7 +88,7 @@ func userAlreadyUsedErrorJson(writer http.ResponseWriter) (w http.ResponseWriter
 }
 
 func (h *Handler) ReturnPanic(w http.ResponseWriter, r *http.Request) {
-	panic("I will be caught by mddleware!")
+	panic("I will be caught by serviceMiddleware!")
 }
 
 func (h *Handler) GetUserCards(w http.ResponseWriter, r *http.Request) {
@@ -184,7 +187,7 @@ func (h *Handler) RegisterUser(writer http.ResponseWriter, request *http.Request
 		return
 	}
 
-	id, err := h.userSvc.RegisterUser(request.Context(), userDTO)
+	id, err := h.UserSvc.RegisterUser(request.Context(), userDTO)
 	if err != nil {
 		writer = userAlreadyUsedErrorJson(writer)
 		return
@@ -224,7 +227,7 @@ func (h *Handler) TokenGenerator(writer http.ResponseWriter, request *http.Reque
 		return
 	}
 
-	token, err := h.userSvc.AuthorizeUser(request.Context(), userDTO)
+	token, err := h.UserSvc.AuthorizeUser(request.Context(), userDTO)
 	if err != nil {
 		if err == user.ErrPasswordWrong {
 			writer.WriteHeader(http.StatusUnauthorized)
@@ -246,39 +249,38 @@ func (h *Handler) TokenGenerator(writer http.ResponseWriter, request *http.Reque
 
 }
 
-//Ошибка в закольцовке import`ов. Необходимо передавать authenticationContextKey из server сюда
-//func (h *Handler) GetAllCards(writer http.ResponseWriter, request *http.Request) {
-//	body, err := ioutil.ReadAll(request.Body)
-//	if err != nil {
-//		log.Println(err)
-//		writer = internalServerErrorJson(writer)
-//		return
-//	}
-//
-//	login := &dto.UserLoginDTO{}
-//	err = json.Unmarshal(body, login)
-//	if err != nil {
-//		writer = internalServerErrorJson(writer)
-//		return
-//	}
-//
-//	role := request.Context().Value(server.AuthenticationContextKey).(user.Role)
-//
-//	cards, err := h.cardSvc.All(request.Context(), login, string(role))
-//	if err != nil {
-//		return
-//	}
-//
-//	responseBody, err := marshalDtos(cards)
-//	if err != nil {
-//		log.Println(err)
-//		writer = internalServerErrorJson(writer)
-//		return
-//	}
-//
-//	writer.Header().Add("Content-Type", "application/json")
-//	writer.Write(responseBody)
-//}
+func (h *Handler) GetAllCards(writer http.ResponseWriter, request *http.Request) {
+	body, err := ioutil.ReadAll(request.Body)
+	if err != nil {
+		log.Println(err)
+		writer = internalServerErrorJson(writer)
+		return
+	}
+
+	login := &dto.UserLoginDTO{}
+	err = json.Unmarshal(body, login)
+	if err != nil {
+		writer = internalServerErrorJson(writer)
+		return
+	}
+
+	role := request.Context().Value(contextKey.AuthenticationContextKey).(user.Role)
+
+	cards, err := h.cardSvc.All(request.Context(), login, string(role))
+	if err != nil {
+		return
+	}
+
+	responseBody, err := marshalDtos(cards)
+	if err != nil {
+		log.Println(err)
+		writer = internalServerErrorJson(writer)
+		return
+	}
+
+	writer.Header().Add("Content-Type", "application/json")
+	writer.Write(responseBody)
+}
 
 func (h *Handler) FindAll(writer http.ResponseWriter, request *http.Request) {
 	body, err := h.cinemaSvc.GetAllOrders(request.Context())
@@ -477,4 +479,56 @@ func (h *Handler) Upload(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
+}
+
+//Присутствует уязвимость, что юзер может увидеть персональные предложения другого юзера
+func (h *Handler) PersonalSuggestion(writer http.ResponseWriter, request *http.Request) {
+	idParam := chi.URLParam(request, "id")
+	if idParam == "" {
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	userID, err := strconv.ParseInt(idParam, 0, 64)
+	if err != nil {
+		log.Print(err)
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	key := fmt.Sprintf("users:%s:suggestions", idParam)
+
+	if !(h.UserSvc.IsUserExist(request.Context(), userID)) {
+		writer.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	if cached, err := h.CacheSvc.FromCache(request.Context(), key); err == nil {
+		log.Printf("Got from cache: %s", cached)
+		writer.Header().Set("Content-Type", "application/json")
+		_, err = writer.Write(cached)
+		if err != nil {
+			log.Print(err)
+		}
+		return
+	}
+
+	time.Sleep(time.Second * 3) // Симуляция долгого запроса к бд
+
+	body, err := h.cinemaSvc.GetUserSuggestion(request.Context(), idParam)
+	if err != nil {
+		log.Print(err)
+		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	_, err = writer.Write(body)
+	if err != nil {
+		writer.WriteHeader(http.StatusInternalServerError)
+	}
+
+	// После получения данных из основной БД и отправки клиенту, можем сохранить в кэш
+	go func() {
+		_ = h.CacheSvc.ToCache(context.Background(), key, body)
+	}()
 }

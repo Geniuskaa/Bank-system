@@ -31,7 +31,7 @@ func NewDbError(err error) *DbError {
 }
 
 func (e DbError) Error() string {
-	return fmt.Sprintf("db error: %s", e.Err.Error())
+	return fmt.Sprintf("db serviceError: %s", e.Err.Error())
 }
 
 func NewService(pool *pgxpool.Pool) *Service {

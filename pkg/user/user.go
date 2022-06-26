@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 	"log"
@@ -47,7 +48,7 @@ func NewDbError(err error) *DbError {
 }
 
 func (e DbError) Error() string {
-	return fmt.Sprintf("db error: %s", e.Err.Error())
+	return fmt.Sprintf("db serviceError: %s", e.Err.Error())
 }
 
 func NewService(pool *pgxpool.Pool) *Service {
@@ -84,6 +85,13 @@ func (s *Service) AuthorizeUser(ctx context.Context, userDto *dto.UserRegAndLogn
 	return token.String(), nil
 }
 
+func (s *Service) GetUserRole(ctx context.Context, token string) pgx.Row {
+	row := s.pool.QueryRow(ctx, `SELECT role from user_to_token join users ON
+  	user_to_token.user_id = users.id where token = $1`, token)
+
+	return row
+}
+
 func (s *Service) RegisterUser(context context.Context, dto *dto.UserRegAndLognDTO) (int64, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(dto.Password), 10)
 	if err != nil {
@@ -104,4 +112,15 @@ func (s *Service) RegisterUser(context context.Context, dto *dto.UserRegAndLognD
 	}
 
 	return *id, nil
+}
+
+func (s *Service) IsUserExist(ctx context.Context, userId int64) bool {
+	var user User
+	row := s.pool.QueryRow(ctx, `SELECT id,login,password from users where id = $1`, userId)
+	err := row.Scan(&user.Id, &user.Login, &user.Password)
+	if err != nil {
+		return false
+	}
+
+	return true
 }

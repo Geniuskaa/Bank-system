@@ -1,9 +1,9 @@
 package server
 
 import (
-	"Bank-system/cmd/bank/app/handler"
-	"Bank-system/cmd/bank/app/mddleware"
-	"Bank-system/cmd/bank/app/mddleware/cache"
+	"Bank-system/cmd/bank/app/handlr"
+	"Bank-system/cmd/bank/app/serviceMiddleware"
+	"Bank-system/cmd/bank/app/serviceMiddleware/cache"
 	"context"
 	"errors"
 	"github.com/go-chi/chi"
@@ -12,29 +12,15 @@ import (
 	"net/http"
 )
 
-var ErrNoIdentifier = errors.New("no identifier")
-var ErrNoAuthentication = errors.New("no authentication")
-var ErrContextEmpty = errors.New("Context is empty!")
-
 type IdentifierFunc func(ctx context.Context) (*string, error)
 type UserDetails func(ctx context.Context, id *string) (interface{}, error)
 
-var AuthenticationContextKey = &contextKey{"authentication context"}
-
-type contextKey struct {
-	name string
-}
-
-func (c *contextKey) String() string {
-	return c.name
-}
-
 type Server struct {
 	mux            *chi.Mux
-	handlerStorage *handler.Handler
+	handlerStorage *handlr.Handler
 }
 
-func NewServer(mux *chi.Mux, handlerStorage *handler.Handler) *Server {
+func NewServer(mux *chi.Mux, handlerStorage *handlr.Handler) *Server {
 	return &Server{mux: mux, handlerStorage: handlerStorage}
 }
 
@@ -49,8 +35,10 @@ func (s *Server) Init() {
 		return s.handlerStorage.CacheSvc.ToCache(context.Background(), path, data)
 	})
 
-	s.mux.Use(mddleware.Recoverer) // Добавление middleWare который ловит панику и обрабатывает её
-	//s.mux.Post("/cards", s.handlerStorage.GetAllCards)
+	authenticationMd := serviceMiddleware.Authorization(s.handlerStorage.UserSvc.GetUserRole)
+
+	s.mux.Use(serviceMiddleware.Recoverer) // Добавление middleWare который ловит панику и обрабатывает её
+	s.mux.With(authenticationMd).Post("/cards", s.handlerStorage.GetAllCards)
 
 	//Запросы с использование MongoDB
 	s.mux.With(middleware.Logger).Get("/orders", s.handlerStorage.FindAll)
@@ -61,6 +49,7 @@ func (s *Server) Init() {
 	//Кешируемые запросы
 	s.mux.With(middleware.Logger, cacheMd).Get("/cached/films", s.handlerStorage.All)
 	s.mux.With(middleware.Logger, cacheMd).Get("/cached/films/{id}", s.handlerStorage.ByID)
+	s.mux.With(middleware.Logger, authenticationMd).Get("/suggestions/{id:[0-9]+}", s.handlerStorage.PersonalSuggestion)
 	s.mux.With(middleware.Logger).Post("/cached/films/upload", s.handlerStorage.Upload)
 
 	s.mux.Get("/getUserCards", s.handlerStorage.GetUserCards)

@@ -1,4 +1,4 @@
-package error
+package serviceError
 
 import "fmt"
 
@@ -8,7 +8,7 @@ type ApiError struct {
 }
 
 func (a ApiError) Error() string {
-	return fmt.Sprintf("api error: id - %d, code - %d", a.ID, a.Code)
+	return fmt.Sprintf("api serviceError: id - %d, code - %d", a.ID, a.Code)
 }
 
 var ErrOriginal = &ApiError{
