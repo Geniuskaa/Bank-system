@@ -1,5 +1,5 @@
 package dto
 
 type Error struct {
-	Error string `json:"error"`
+	Error string `json:"serviceError"`
 }

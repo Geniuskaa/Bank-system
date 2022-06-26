@@ -1,6 +1,7 @@
 package cinema
 
 import (
+	"Bank-system/cmd/bank/app/dto"
 	"Bank-system/pkg/additionalservice/cinema/model"
 	"context"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"log"
+	"strconv"
 	"time"
 )
 
@@ -217,4 +219,28 @@ func (s *Service) UploadFilm(ctx context.Context, film model.FilmInfo) (string, 
 	filmID := result.InsertedID.(primitive.ObjectID).String()
 
 	return filmID, nil
+}
+
+func (s *Service) GetUserSuggestion(ctx context.Context, userID string) ([]byte, error) {
+	id, err := strconv.Atoi(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var suggestion dto.Suggestion
+
+	err = s.mongoDB.Collection("suggestions").FindOne(ctx, bson.D{{"user_id", id}}).Decode(&suggestion)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, err
+		}
+		return nil, err
+	}
+
+	body, err := json.Marshal(suggestion)
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }

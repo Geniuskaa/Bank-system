@@ -1,3 +1,4 @@
+.idea
 docker-entrypoint-initdb.d/
 docker-compose.yml
 conf/
