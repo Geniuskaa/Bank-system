@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package bankSystem.topUpPhoneBalancePattern.v1;
+option go_package = "Bank-system/pkg/topUpPhoneBalancePattern/v1";
+
+import "google/protobuf/timestamp.proto"; // импортируем из другого proto (includes -> third_party)
+
+service PhoneBalancePatternService { // определение сервиса
+  rpc CreatePattern (Pattern) returns (PatternResponse); // метод
+  rpc GetAllPatterns (EmptyRequest) returns (AllPatternsResponse); // метод
+  rpc GetPatternById (PatternId) returns (Pattern); // метод
+  rpc EditPatterById (Pattern) returns (PatternResponse); // метод
+  rpc DeleteById (PatternId) returns (PatternResponse); // метод
+}
+
+message Pattern {
+  int64 id = 1;
+  string title = 2;
+  string phoneNumber = 3;
+  google.protobuf.Timestamp created = 4;
+  google.protobuf.Timestamp updated = 5;
+}
+
+message AllPatternsResponse {
+  repeated Pattern patterns = 1;
+}
+
+message PatternResponse {
+  bool completedSuccesfully = 1;
+}
+
+message PatternId {
+  int64 id = 1;
+}
+
+message EmptyRequest {
+
+}
