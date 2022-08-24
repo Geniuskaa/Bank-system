@@ -1,3 +1,8 @@
+.idea
+docker-entrypoint-initdb.d/
+docker-compose.yml
+conf/
+
 # Binaries for programs and plugins
 *.exe
 *.exe~
@@ -13,3 +18,4 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+

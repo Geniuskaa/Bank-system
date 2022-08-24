@@ -1,0 +1,135 @@
+###
+GET http://localhost:9999/getCards HTTP/1.1
+
+###
+POST http://localhost:9999/getCards HTTP/1.1
+
+###
+POST http://localhost:9999/request?key=queryValue1&key=queryValue2 HTTP/1.1
+Accept: text/plain
+Content-Type: application/x-www-form-urlencoded
+
+key=postFormValue1&key=postFormValue2
+
+###
+POST localhost:9999/addCard
+Content-Type: application/json
+
+{
+  "type": "virtual",
+  "issuer": "VISA",
+  "id": 2
+}
+
+###
+POST localhost:9999/addUser
+Content-Type: application/json
+
+{
+  "id": 2
+}
+
+
+###
+POST localhost:9999/addCard?id=2
+Content-Type: application/json
+
+{
+  "id": 1,
+  "type": "additional",
+  "issuer": "VISA"
+}
+
+###
+GET localhost:9999/getUserCards?id=3
+
+###
+GET localhost:9999/getCardTransactions?cardID=1
+
+###
+GET localhost:9999/returnPanic
+
+
+
+###
+POST localhost:9999/api/users
+Content-Type: application/json
+
+{
+  "login": "lokotok",
+  "password": "qwerty003"
+}
+
+###
+POST localhost:9999/token
+Content-Type: application/json
+
+{
+  "login": "lokotok",
+  "password": "qwerty003"
+}
+
+###
+POST localhost:9999/cards
+Authorization: 2e5be202-f53e-11ec-9312-00ffd1b06a71
+Content-Type: application/json
+
+{
+  "login": "lokotok"
+}
+
+### Создание ордера в сервисе кинотеатра
+POST localhost:9999/orders
+Content-Type: application/json
+
+{
+  "start": 18966053275,
+  "film": {
+            "title": "Ивановы",
+            "rating": 4.6,
+            "cashback": 8.1,
+            "genres": ["fun","russian"]
+          },
+  "seats": [{"row": 7, "number": 8},{"row": 7, "number": 9},{"row": 7, "number": 10}],
+  "price": 730,
+  "created": 23427443925
+}
+
+### Поиск ордеров по рейтингу фильма
+GET localhost:9999/orders/search?min_rating=5
+
+### Получить все ордера
+GET localhost:9999/orders
+
+### Получить заказ по id
+GET localhost:9999/orders/62b573377bfcfa54e8d345df
+
+### Обновление заказа
+POST localhost:9999/orders
+Content-Type: application/json
+
+{
+  "id": "62b573917bfcfa54e8d345e0",
+  "start": 66166053275,
+  "seats": [{"row": 7, "number": 8},{"row": 7, "number": 9},{"row": 7, "number": 10}],
+  "price": 730,
+  "created": 23427443925
+}
+
+### Добавление нового фильма
+POST localhost:9998/cached/films/upload
+Content-Type: application/json
+
+{
+  "title": "Ивановы",
+  "rating": 3.9,
+  "genres": ["comedy", "action"],
+  "start": 1276480758
+}
+
+### Получение фильма по ID
+GET localhost:9998/cached/films/62b8269d3af646e6badc7735
+
+### Получение персонального предложения
+GET localhost:9998/suggestions/2
+Authorization: 2e5be202-f53e-11ec-9312-00ffd1b06a71

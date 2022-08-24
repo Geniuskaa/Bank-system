@@ -1,0 +1,5 @@
+-Icmd/bank/api/proto/v1
+-Ipkg/third_party
+--go_out=plugins=grpc:pkg/topUpPhoneBalancePattern/v1
+--go_opt=paths=source_relative
+cmd/bank/api/proto/v1/topUpPhoneBalancePattern.proto
