@@ -117,7 +117,7 @@ Content-Type: application/json
 }
 
 ### Добавление нового фильма
-POST localhost:9999/cached/films/upload
+POST localhost:9998/cached/films/upload
 Content-Type: application/json
 
 {
@@ -128,8 +128,8 @@ Content-Type: application/json
 }
 
 ### Получение фильма по ID
-GET localhost:9999/cached/films/62b8269d3af646e6badc7735
+GET localhost:9998/cached/films/62b8269d3af646e6badc7735
 
 ### Получение персонального предложения
-GET localhost:9999/suggestions/2
+GET localhost:9998/suggestions/2
 Authorization: 2e5be202-f53e-11ec-9312-00ffd1b06a71

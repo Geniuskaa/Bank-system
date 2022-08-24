@@ -1,11 +1,11 @@
 package cinema
 
 import (
-	"Bank-system/cmd/bank/app/dto"
-	"Bank-system/pkg/additionalservice/cinema/model"
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/Geniuskaa/Bank-system/pkg/additionalservice/cinema/model"
+	"github.com/Geniuskaa/Bank-system/pkg/app/dto"
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
